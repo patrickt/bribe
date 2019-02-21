@@ -20,6 +20,8 @@ import qualified Data.HashMap.Strict as HM
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Text.Encoding
+import qualified Data.Text.Prettyprint.Doc as Pretty
+import           Data.Text.Prettyprint.Doc (Pretty (..), Doc)
 import qualified Data.Text.IO as T
 import qualified Data.Yaml as YAML
 import           Debug.Trace
@@ -68,6 +70,14 @@ data License = License
   , legalese :: Text
   } deriving (Eq, Show)
 
+instance Pretty License where
+  pretty License{..} = Pretty.vcat
+    [ "---"
+    , pretty preamble
+    , "---"
+    , pretty legalese
+    ]
+
 parseDep :: Atto.Parser Dep
 parseDep = do
   traceM "start"
@@ -86,6 +96,15 @@ parseLicense = do
 
 skipThese :: [Text]
 skipThese = ["Cabal", "Only", "cabal-doctest"]
+
+infoFromDescription :: ( Member (Reader Conf) sig
+                       , Member (Error BribeException)
+                       , Carrier sig m, MonadIO m
+                       )
+                    => m Info
+infoFromDescription = do
+  (code, out, err) <- readProcessWithExitCode "stack" ["exec", "ghc-pkg", "--", "describe", ""] ""
+
 
 download :: ( Member (Error BribeException) sig
             , Carrier sig m

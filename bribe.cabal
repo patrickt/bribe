@@ -18,18 +18,19 @@ executable bribe
   main-is:             Main.hs
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5
-                     , fused-effects
-                     , optparse-applicative
                      , aeson
-                     , pathtype
                      , attoparsec
                      , bytestring
                      , data-default
-                     , text
+                     , directory
                      , fused-effects
-                     , unordered-containers
+                     , fused-effects
+                     , optparse-applicative
+                     , pathtype
+                     , prettyprinter
                      , process
                      , req
+                     , text
                      , unix
+                     , unordered-containers
                      , yaml
-                     , directory
