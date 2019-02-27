@@ -19,8 +19,10 @@ import           Data.Default (def)
 import qualified Data.HashMap.Strict as HM
 import           Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import           Data.Text.Encoding
 import qualified Data.Text.Prettyprint.Doc as Pretty
+import qualified Data.Text.Prettyprint.Doc.Render.Text as Pretty
 import           Data.Text.Prettyprint.Doc (Pretty (..), Doc)
 import qualified Data.Text.IO as T
 import qualified Data.Yaml as YAML
@@ -56,6 +58,16 @@ data Info = Info
   , homepage :: Maybe Text
   , license  :: Text
   } deriving (Show, Eq, Generic, YAML.FromJSON)
+
+instance Pretty Info where
+  pretty Info{..} = Pretty.vcat
+    [ "type: cabal"
+    , "name: " <> pretty name
+    , "version: " <> pretty version
+    , maybe "" (\s -> "summary: " <> pretty s) summary
+    , maybe "" (\s -> "homepage: " <> pretty s) homepage
+    , "license: " <> pretty license
+    ]
 
 data Dep = Dep
   { depName    :: Text
@@ -97,13 +109,13 @@ parseLicense = do
 skipThese :: [Text]
 skipThese = ["Cabal", "Only", "cabal-doctest"]
 
-infoFromDescription :: ( Member (Reader Conf) sig
-                       , Member (Error BribeException)
-                       , Carrier sig m, MonadIO m
-                       )
-                    => m Info
-infoFromDescription = do
-  (code, out, err) <- readProcessWithExitCode "stack" ["exec", "ghc-pkg", "--", "describe", ""] ""
+-- infoFromDescription :: ( Member (Reader Conf) sig
+--                        , Member (Error BribeException)
+--                        , Carrier sig m, MonadIO m
+--                        )
+--                     => m Info
+-- infoFromDescription = do
+--   (code, out, err) <- readProcessWithExitCode "stack" ["exec", "ghc-pkg", "--", "describe", ""] ""
 
 
 download :: ( Member (Error BribeException) sig
@@ -122,10 +134,11 @@ download p d@Dep{..} = do
     $ Req.req Req.GET licenseURL Req.NoReqBody Req.bsResponse mempty
 
   case eResult of
-    Left err -> if p == "LICENSE" then download "LICENSE.txt" d else liftIO (print err)
+    Left err -> if p == "LICENSE" then download "LICENSE.txt" d else pure ()
     Right _  -> liftIO (putStrLn "Found license file.")
 
-
+textDoc :: Pretty a => a -> Text
+textDoc = Pretty.renderStrict . Pretty.layoutPretty Pretty.defaultLayoutOptions . pretty
 
 process :: ( Member (Reader Conf) sig
            , Member (Error BribeException) sig
@@ -148,19 +161,26 @@ process d@Dep{..}
           download "LICENSE" d
         else do
           eLicense <- Atto.parseOnly parseLicense <$> liftIO (T.readFile sys)
-          let coalesce = join . fmap (first show)
-          info <- case coalesce (fmap (YAML.decodeEither' @Info . encodeUtf8 . preamble) eLicense) of
-                    Left e  -> fail e
-                    Right r -> pure r
+          license  <- either (throwError . AttoParseFailure) pure eLicense
+
+          let eInfo = YAML.decodeEither' @Info . encodeUtf8 . preamble $ license
+          info <- either (throwError . YAMLParseFailure . show) pure eInfo
+
           let v = version info
 
           if version info == depVersion
             then liftIO (T.putStrLn (depName <> ": OK"))
             else do
               liftIO (T.putStrLn (depName <> ": MISMATCH!"))
+              let newInfo = info { version = depVersion }
+              let newLicense = license { preamble = textDoc newInfo }
+              liftIO . T.writeFile sys . textDoc $ newLicense
+
 
 data BribeException
   = LicenseFileNotFound FilePath
+  | AttoParseFailure String
+  | YAMLParseFailure String
     deriving (Show)
 
 main :: IO ()
@@ -168,18 +188,20 @@ main = do
   let opts = info (configParser <**> helper)
         (fullDesc
          <> progDesc "update a .licensed directory from a Stack snapshot"
-         <> header "bribe - get past license checks ASAP")
+         <> header "bribe - get past license checks A$AP")
 
-  tcfg <- execParser opts
-  (pcfg :: Conf) <- case traverse Path.parse tcfg of
-    Left  l -> die ("Fatal error: " <> show l)
-    Right c -> pure c
+  -- Parse command-line arguments and ensure path validity
+  tcfg <- Opt.execParser opts
+  pcfg <- case traverse Path.parse tcfg of
+    Left  l -> die  ("Fatal error: " <> show l)
+    Right c -> pure (c :: Conf)
 
+  -- Go to the specified working
   changeWorkingDirectory . Path.toString . cfgDirectory $ pcfg
 
   putStrLn "starting"
 
-  (code, out, err) <- readProcessWithExitCode "stack" ["ls", "dependencies", "--depth=1", cfgProject pcfg] ""
+  (code, out, err) <- readProcessWithExitCode "stack" ["ls", "dependencies", cfgProject pcfg] ""
 
   when (code /= ExitSuccess) (die ("Failed executing `stack ls dependencies`: " <> out))
 
