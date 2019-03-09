@@ -1,15 +1,15 @@
-{-# LANGUAGE DeriveAnyClass, DeriveFunctor, DeriveGeneric, DeriveTraversable, DuplicateRecordFields, FlexibleContexts,
-             FlexibleInstances, OverloadedStrings, RecordWildCards, ScopedTypeVariables, TypeApplications #-}
+{-# LANGUAGE ApplicativeDo, RecordWildCards, ScopedTypeVariables #-}
 
-module Main where
+module Main (main) where
 
 import Prelude hiding (fail)
 
-import           Control.Applicative
 import           Control.Effect
 import           Control.Effect.Error
 import           Control.Effect.Fail hiding (fail)
 import           Control.Effect.Reader
+import           Control.Effect.Trace
+import           Control.Effect.Writer
 import qualified Control.Exception as Exc
 import           Control.Monad
 import           Control.Monad.IO.Class
@@ -42,26 +42,26 @@ data Config dir = Config
   } deriving (Show, Functor, Foldable, Traversable)
 
 data CommandF dir
-  = Check    { config :: Config dir }
-  | Download { config :: Config dir }
+  = Check  { config :: Config dir }
+  | Update { config :: Config dir }
     deriving (Show, Functor, Foldable, Traversable)
 
 type Command = CommandF Path.AbsRelDir
 
-shouldDownload :: Command -> Bool
-shouldDownload (Download _) = True
-shouldDownload _            = False
+shouldUpdate :: Command -> Bool
+shouldUpdate (Update _) = True
+shouldUpdate _          = False
 
 commandParser :: Opt.Parser (CommandF FilePath)
-commandParser = subparser
-  (  command "check"    (info ((Check <$> configParser)    <**> helper) (progDesc "Check the validity of a cached .licensed directory"))
-  <> command "download" (info ((Download <$> configParser) <**> helper) (progDesc "Patch or download license files"))
-  )
+commandParser = hsubparser $ mconcat
+  [ command "check"    (info (Check <$> configParser)  (progDesc "Check the validity of a cached .licensed directory"))
+  , command "update"   (info (Update <$> configParser) (progDesc "Patch or update license files"))
+  ]
 
 configParser :: Opt.Parser (Config FilePath)
 configParser =
   Config
-  <$> strOption (short 'p' <> long "project"  <> metavar "PROJECT"  <> help "Project to process")
+  <$> strOption (short 'p' <> long "project"   <> metavar "PROJECT"  <> help "Project to process")
   <*> strOption (short 'd' <> long "directory" <> metavar "DIRECTORY" <> help "Working directory")
 
 
@@ -70,11 +70,11 @@ skipThese = ["Cabal", "Only", "cabal-doctest"]
 
 download :: ( Member (Error BribeException) sig
            , Member (Reader Dep) sig
+           , Member Trace sig
            , Carrier sig m
            , MonadIO m
            )
-         => Text
-         -> m ()
+         => Text -> m ()
 download p = do
   tag <- asks depTag
   let licenseURL = Req.http "hackage.haskell.org" /: "package" /: tag /: "src" /: p
@@ -86,7 +86,7 @@ download p = do
 
   case eResult of
     Left _  -> if p == "LICENSE" then download "LICENSE.txt" else pure ()
-    Right _ -> liftIO (putStrLn "Found license file.")
+    Right _ -> trace "Downloaded license file."
 
 textDoc :: Pretty a => a -> Text
 textDoc = Pretty.renderStrict . Pretty.layoutPretty Pretty.defaultLayoutOptions . pretty
@@ -94,12 +94,14 @@ textDoc = Pretty.renderStrict . Pretty.layoutPretty Pretty.defaultLayoutOptions 
 process :: ( Member (Reader Command) sig
           , Member (Reader Dep) sig
           , Member (Error BribeException) sig
+          , Member (Writer Result) sig
+          , Member Trace sig
           , Carrier sig m
           , MonadIO m
           )
         => m ()
 process = do
-  Dep depName depVersion <- ask
+  dep@(Dep depName depVersion) <- ask
   unless (depName `elem` skipThese) $ do
     Config{..} <- asks config
     let (path :: Path.AbsRelFile) =
@@ -110,12 +112,12 @@ process = do
           </> Path.file (T.unpack depName) <.> "txt"
 
     let sys = Path.toString path
-    should <- asks shouldDownload
+    should <- asks shouldUpdate
     exists <- liftIO (doesFileExist sys)
     if not exists
       then do
-        liftIO (T.putStrLn (depName <> ": LICENSE NOT FOUND!"))
-
+        trace (T.unpack depName <> ": LICENSE NOT FOUND!")
+        tell (missing dep)
         when should (download "LICENSE")
       else do
         eLicense <- Atto.parseOnly parseLicense <$> liftIO (T.readFile sys)
@@ -125,9 +127,12 @@ process = do
         current <- either (throwError . YAMLParseFailure depName . show) pure eInfo
 
         if version current == depVersion
-          then liftIO (T.putStrLn (depName <> ": OK"))
+          then do
+            trace (T.unpack depName <> ": OK")
+            tell succeeding
           else do
-            liftIO (T.putStrLn (depName <> ": MISMATCH!"))
+            trace (T.unpack depName <> ": MISMATCH!")
+            tell (mismatched dep (version current))
             when should $ do
               let newInfo = current { version = depVersion }
               let newLicense = license { preamble = textDoc newInfo }
@@ -158,19 +163,19 @@ main = do
 
   when (code /= ExitSuccess) (die ("Failed executing `stack ls dependencies`: " <> out))
 
-  print (T.lines . T.pack $ out)
-
   let parse = parseDep `Atto.sepBy` Atto.char '\n'
 
   let (Right parsed) = Atto.parseOnly parse (T.pack out)
 
   result <- runM
+    . runTraceByIgnoring
     . runFail
     . runError @_ @_ @BribeException
+    . execWriter
     . runReader cmd
     . for_ parsed
     $ flip runReader process
   case result of
-    Right (Left err) -> die ("Fatal error: " <> show err)
-    Left err         -> die ("Unexpected JSON value (debug: " <> show err <> ")")
-    _                -> pure ()
+    Left err             -> die ("Unexpected JSON value (debug: " <> show err <> ")")
+    Right (Left err)     -> die ("Fatal error: " <> show err)
+    Right (Right done)   -> Pretty.putDoc (pretty @Result done) *> putStrLn ""

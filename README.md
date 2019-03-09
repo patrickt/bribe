@@ -11,3 +11,9 @@
 [stack]: https://github.com/commercialhaskell/stack
 
 ## Usage
+
+`bribe COMMAND -p PROJECT -d DIRECTORY`
+
+* `COMMAND` is either `check` or `update`; `check` just reports results, whereas `update` tries to remedy them.
+* `PROJECT` is the name of the cabal project to report on.
+* `DIRECTORY` is the directory in which to check for the `.licensed` directory; must be relative.

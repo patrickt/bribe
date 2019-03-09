@@ -20,7 +20,7 @@ common haskell
                      , DeriveFunctor
                      , DeriveGeneric
                      , DeriveTraversable
-                     , DerivingStrategies
+                     , DerivingVia
                      , FlexibleContexts
                      , FlexibleInstances
                      , GeneralizedNewtypeDeriving
@@ -42,10 +42,12 @@ executable bribe
                      , aeson
                      , attoparsec
                      , bytestring
+                     , containers
                      , data-default
                      , directory
                      , fused-effects
                      , fused-effects
+                     , generic-monoid
                      , optparse-applicative
                      , pathtype
                      , prettyprinter
