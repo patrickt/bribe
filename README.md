@@ -5,7 +5,9 @@
 >
 > – Alexander Pope, "Epilogue to Satire"
 
-`bribe` is a small utility to speed up the checking of [stack][stack] projects with [licensed][licensed].
+`bribe` is a small utility that aggregates the licenses of [Stack][stack] projects in a manner compatible with that of [`licensed`][licensed]. In contrast to `licensed`, `bribe` does not actually build a Haskell project, instead inferring license information from the output of `stack ls dependencies`.
 
 [licensed]: https://github.com/github/licensed
 [stack]: https://github.com/commercialhaskell/stack
+
+## Usage

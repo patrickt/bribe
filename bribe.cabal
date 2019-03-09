@@ -1,22 +1,43 @@
+cabal-version:       2.2
 name:                bribe
 version:             0.1.0.0
--- synopsis:
--- description:
+synopsis:            Aggregate dependency licenses
 homepage:            https://github.com/patrickt/bribe#readme
-license:             BSD3
+license:             BSD-3-Clause
 license-file:        LICENSE
 author:              Patrick Thomson
 maintainer:          patrickt@github.com
-copyright:           Patrick Thomson
-category:            Web
+copyright:           (c) 2019 GitHub, Inc.
+category:            CLI
 build-type:          Simple
-cabal-version:       >=1.10
 extra-source-files:  README.md
 
+common haskell
+  default-language:    Haskell2010
+  default-extensions:  DataKinds
+                     , DeriveAnyClass
+                     , DeriveFoldable
+                     , DeriveFunctor
+                     , DeriveGeneric
+                     , DeriveTraversable
+                     , DerivingStrategies
+                     , FlexibleContexts
+                     , FlexibleInstances
+                     , GeneralizedNewtypeDeriving
+                     , MonadFailDesugaring
+                     , MultiParamTypeClasses
+                     , OverloadedStrings
+                     , RecordWildCards
+                     , StandaloneDeriving
+                     , StrictData
+                     , TypeApplications
+
 executable bribe
+  import:              haskell
   hs-source-dirs:      src
   main-is:             Main.hs
-  default-language:    Haskell2010
+  other-modules:       Bribe
+  ghc-options:         -Wall -Werror
   build-depends:       base >= 4.7 && < 5
                      , aeson
                      , attoparsec
