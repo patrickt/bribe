@@ -39,10 +39,12 @@ instance Pretty Info where
     [ "type: cabal"
     , "name: " <> pretty name
     , "version: " <> pretty version
-    , maybe "" (\s -> "summary: " <> pretty s) summary
+    , maybe "" (\s -> "summary: " <> escaping s) summary
     , maybe "" (\s -> "homepage: " <> pretty s) homepage
     , "license: " <> pretty license
-    ]
+    ] where escaping x
+            | ":" `T.isPrefixOf` x = Pretty.squotes $ pretty x
+            | otherwise            = pretty x
 
 data License = License
   { preamble :: Text -- ^ an encoded 'Info'
