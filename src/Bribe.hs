@@ -85,8 +85,8 @@ data Failure
   deriving (Eq, Show)
 
 instance Pretty Failure where
-  pretty (Mismatch found expected) = "- " <> pretty (depTag found) <+> "(Stackage version: " <> pretty expected <> ")"
-  pretty (Missing found)           = "- " <> pretty (depTag found) <+> "(license not downloaded)"
+  pretty (Mismatch found expected) = "-" <+> pretty (depTag found) <+> "(Stackage version:" <+> pretty expected <> ")"
+  pretty (Missing found)           = "-" <+> pretty (depTag found) <+> "(license not downloaded)"
 
 data Result = Result
   { succeeded :: Sum Int
