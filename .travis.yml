@@ -24,6 +24,7 @@ matrix:
 before_install:
 - mkdir -p $HOME/.local/bin
 - "PATH=/opt/ghc/bin:$HOME/local/bin:$PATH"
+- ./.travis/install-ghr.sh
 - ghc --version
 - cabal --version
 
@@ -39,3 +40,8 @@ script:
 - cabal new-haddock
 - cabal new-sdist
 - cabal check
+
+after_success:
+ - |
+   # Build and ship binary
+   ./.travis/attach-binary.sh
