@@ -61,7 +61,7 @@ munge :: Text -> Text
 munge t
   | t == "BSD-3" = "bsd-3-clause"
   | t == "MIT"   = "mit"
-  | otherwise = t
+  | otherwise = T.toLower t
 
 instance Pretty Info where
   pretty Info{..} = Pretty.vcat

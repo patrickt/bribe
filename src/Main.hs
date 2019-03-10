@@ -14,7 +14,6 @@ import qualified Control.Exception as Exc
 import           Control.Monad
 import           Control.Monad.IO.Class
 import qualified Data.Attoparsec.Text as Atto
-import qualified Data.ByteString.Char8 as B
 import           Data.Default (def)
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -23,17 +22,14 @@ import qualified Data.Text.IO as T
 import           Data.Text.Prettyprint.Doc (Pretty (..))
 import qualified Data.Text.Prettyprint.Doc as Pretty
 import qualified Data.Text.Prettyprint.Doc.Render.Text as Pretty
-import qualified Distribution.PackageDescription.Parsec as Cabal
-import qualified Distribution.Types.PackageId as Cabal
-import qualified Distribution.Types.GenericPackageDescription as Cabal
-import qualified Distribution.InstalledPackageInfo as Cabal
 import qualified Data.Yaml as YAML
+import qualified Distribution.InstalledPackageInfo as Cabal
 import           Network.HTTP.Req ((/:))
 import qualified Network.HTTP.Req as Req
+import           Options.Applicative as Opt
 import           System.Directory (doesFileExist)
 import           System.Exit
 import           System.Path ((<.>), (</>))
-import           Options.Applicative as Opt
 import qualified System.Path as Path
 import           System.Posix.Directory
 import           System.Process
