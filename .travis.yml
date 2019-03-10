@@ -29,6 +29,7 @@ before_install:
 # Download and unpack the stack executable
 - mkdir -p ~/.local/bin
 - export PATH=$HOME/.local/bin:$PATH
+- ./.travis/install-ghr.sh
 - travis_retry curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
 
 install:
@@ -38,3 +39,8 @@ install:
 script:
 # Build the package, its tests, and its docs and run the tests
 - stack --no-terminal test --haddock --no-haddock-deps
+
+after_success:
+ - |
+   # Build and ship binary
+   BUILD_BINARY=1 ./.travis/attach-binary.sh
