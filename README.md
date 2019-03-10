@@ -18,4 +18,6 @@ Scarce hurts the lawyer, but undoes the scribe.
 
 * `COMMAND` is either `check` or `update`; `check` just reports results, whereas `update` tries to remedy them.
 * `PROJECT` is the name of the cabal project to report on.
-* `DIRECTORY` is the directory in which to check for the `.licensed` directory; must be relative.
+* `DIRECTORY` is the absolute or relative directory in which to check for the `.licensed` directory.
+
+A `check` command will fail with a non-zero exit code if there are any licenses that are present but outdated. Missing licenses will produce a warning.

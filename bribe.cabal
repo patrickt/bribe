@@ -37,6 +37,8 @@ executable bribe
   hs-source-dirs:      src
   main-is:             Main.hs
   other-modules:       Bribe
+                     , Command
+                     , Settings
   ghc-options:         -Wall -Werror
   build-depends:       base >= 4.7 && < 5
                      , aeson
