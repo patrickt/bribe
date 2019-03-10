@@ -1,4 +1,4 @@
-{-# LANGUAGE DerivingVia, DuplicateRecordFields, OverloadedLists #-}
+{-# LANGUAGE DerivingVia, DuplicateRecordFields, LambdaCase, OverloadedLists #-}
 
 module Bribe
   ( whenM
@@ -14,6 +14,7 @@ module Bribe
   , succeeding
   , missing
   , mismatched
+  , invalid
   , ignore
   ) where
 
@@ -93,6 +94,7 @@ parseDep = do
 data Failure
   = Mismatch Dep Text
   | Missing Dep
+  | Invalid Dep Text
   deriving (Eq, Show)
 
 isMismatch :: Failure -> Bool
@@ -100,8 +102,10 @@ isMismatch Mismatch{} = True
 isMismatch _          = False
 
 instance Pretty Failure where
-  pretty (Mismatch found expected) = "-" <+> pretty (depTag found) <+> "(Stackage version:" <+> pretty expected <> ")"
-  pretty (Missing found)           = "-" <+> pretty (depTag found) <+> "(license not downloaded)"
+  pretty = \case
+    Mismatch found expected -> "-" <+> pretty (depTag found) <+> Pretty.parens ("Stackage version:" <+> pretty expected)
+    Missing found           -> "-" <+> pretty (depTag found) <+> "(license not downloaded)"
+    Invalid found lic       -> "-" <+> pretty (depTag found) <+> Pretty.parens ("invalid license:" <+> pretty lic)
 
 data Result = Result
   { succeeded :: Sum Int
@@ -129,6 +133,9 @@ mismatched d t = Result 0 [Mismatch d t] 0
 
 missing :: Dep -> Result
 missing d = Result 0 [Missing d] 0
+
+invalid :: Dep -> Text -> Result
+invalid d t = mempty { failures = [Invalid d t]}
 
 ignore :: Result
 ignore = Result 0 [] 1

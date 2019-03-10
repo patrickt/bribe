@@ -54,6 +54,7 @@ data LicenseError
   = Ignoring
   | Missing
   | Mismatch String Info License
+  | Disallowed Text
     deriving (Eq, Show)
 
 data Fatal
@@ -79,6 +80,9 @@ recover err = do
       trace' (T.unpack dname <> ": LICENSE NOT FOUND!")
       tell (missing dep)
       whenM (asks isUpdating) (download "LICENSE")
+    Disallowed t -> do
+      trace' (T.unpack dname <> ": DISALLOWED LICENSE!")
+      tell (invalid dep t)
     Mismatch sys current license -> do
       trace' (T.unpack dname <> ": MISMATCH!")
       tell (mismatched dep (version current))
@@ -105,12 +109,16 @@ verify = do
   unlessM (liftIO (doesFileExist sys)) (throwError Missing)
 
   eLicense <- Atto.parseOnly parseLicense <$> liftIO (T.readFile sys)
-  license  <- either (throwError . AttoParseFailure) pure eLicense
+  onDisk   <- either (throwError . AttoParseFailure) pure eLicense
 
-  let eInfo = YAML.decodeEither' @Info . encodeUtf8 . preamble $ license
+  let eInfo = YAML.decodeEither' @Info . encodeUtf8 . preamble $ onDisk
   current <- either (throwError . YAMLParseFailure depName . show) pure eInfo
 
-  when (version current /= depVersion) (throwError (Mismatch sys current license))
+  valids <- asks allowed
+  unless (license current `elem` valids) (throwError (Disallowed (license current)))
+  trace' ("LICENSE: " <> show (license current))
+
+  when (version current /= depVersion) (throwError (Mismatch sys current onDisk))
 
   trace' (T.unpack depName <> ": OK")
   tell succeeding
