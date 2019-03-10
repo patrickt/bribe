@@ -1,0 +1,4 @@
+packages: bribe.cabal
+jobs: $ncpus
+package bribe
+  ghc-options: -Werror -O0
