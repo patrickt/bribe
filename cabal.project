@@ -1,4 +1,4 @@
-packages: fused-effects.cabal
+packages: bribe.cabal
 jobs: $ncpus
-package fused-effects
+package bribe
   ghc-options: -Werror -O0
