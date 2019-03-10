@@ -169,7 +169,7 @@ main = do
   result <- runM
     . runTraceByPrinting
     . runFail
-    . runError @_ @_ @Fatal
+    . runError @Fatal
     . execWriter
     . runReader cmd
     . runReader settings
