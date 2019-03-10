@@ -1,4 +1,4 @@
-{-# LANGUAGE DuplicateRecordFields, OverloadedLists #-}
+{-# LANGUAGE DerivingVia, DuplicateRecordFields, OverloadedLists #-}
 
 module Bribe
   ( whenM
@@ -33,7 +33,6 @@ import           GHC.Generics
 whenM, unlessM :: Monad m => m Bool -> m () -> m ()
 whenM act handle = act >>= flip when handle
 unlessM act handle = act >>= flip unless handle
-
 
 data Info = Info
   { name     :: Text

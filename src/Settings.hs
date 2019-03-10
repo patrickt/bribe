@@ -1,3 +1,5 @@
+{-# LANGUAGE DerivingVia #-}
+
 module Settings
   ( Settings (..)
   ) where

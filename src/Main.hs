@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, RecordWildCards, ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds, LambdaCase, RecordWildCards, ScopedTypeVariables #-}
 
 module Main (main) where
 
@@ -37,38 +37,18 @@ import Bribe
 import Command
 import Settings
 
-trace' :: ( Member (Reader Command) sig
-         , Member Trace sig
-         , Carrier sig m
-         , Monad m
-         )
-       => String -> m ()
-trace' msg = whenM (asks (verbose . config)) (trace msg)
-
-
-download :: ( Member (Error BribeException) sig
-           , Member (Reader Command) sig
-           , Member (Reader Dep) sig
-           , Member Trace sig
-           , Carrier sig m
-           , MonadIO m
-           )
-         => Text -> m ()
-download p = do
-  tag <- asks depTag
-  let licenseURL = Req.http "hackage.haskell.org" /: "package" /: tag /: "src" /: p
-  eResult <-
-    liftIO
-    . Exc.try @Exc.SomeException
-    . Req.runReq def
-    $ Req.req Req.GET licenseURL Req.NoReqBody Req.bsResponse mempty
-
-  case eResult of
-    Left _  -> if p == "LICENSE" then download "LICENSE.txt" else pure ()
-    Right _ -> trace' "Downloaded license file."
-
-textDoc :: Pretty a => a -> Text
-textDoc = Pretty.renderStrict . Pretty.layoutPretty Pretty.defaultLayoutOptions . pretty
+type Checking sig m
+  = ( Member (Reader Command) sig
+    , Member (Reader Dep) sig
+    , Member (Reader Settings) sig
+    , Member (Error Fatal) sig
+    , Member (Writer Result) sig
+    , Member (Lift IO) sig
+    , Member Trace sig
+    , Effect sig
+    , Carrier sig m
+    , MonadIO m
+    )
 
 data LicenseError
   = Ignoring
@@ -76,36 +56,25 @@ data LicenseError
   | Mismatch String Info License
     deriving (Eq, Show)
 
-process :: ( Member (Reader Command) sig
-          , Member (Reader Dep) sig
-          , Member (Error BribeException) sig
-          , Member (Writer Result) sig
-          , Member (Reader Settings) sig
-          , Member Trace sig
-          , Effect sig
-          , Carrier sig m
-          , Member (Lift IO) sig
-          , MonadIO m
-          )
-        => m ()
+data Fatal
+  = AttoParseFailure String
+  | YAMLParseFailure Text String
+    deriving (Show)
+
+-- Could write our own handler, but this is easier
+trace' :: Checking sig m => String -> m ()
+trace' msg = whenM (asks (verbose . config)) (trace msg)
+
+-- Main loop, each dependency provided by the Reader effect
+process :: Checking sig m => m ()
 process = runError verify >>= either recover (void . pure)
 
-recover :: ( Member (Writer Result) sig
-          , Member (Lift IO) sig
-          , Member (Reader Dep) sig
-          , Member (Reader Command) sig
-          , Member (Error BribeException) sig
-          , Member Trace sig
-          , Carrier sig m
-          , Effect sig
-          , MonadIO m
-          )
-        => LicenseError
-        -> m ()
+-- Handle and log non-fatal errors
+recover :: Checking sig m => LicenseError -> m ()
 recover err = do
   dep@(Dep dname dversion) <- ask
   case err of
-    Ignoring -> trace' (T.unpack dname <> "IGNORING") *> tell ignore
+    Ignoring -> trace' (T.unpack dname <> ": IGNORING") *> tell ignore
     Missing -> do
       trace' (T.unpack dname <> ": LICENSE NOT FOUND!")
       tell (missing dep)
@@ -118,17 +87,8 @@ recover err = do
         let newLicense = license { preamble = textDoc newInfo }
         liftIO . T.writeFile sys . textDoc $ newLicense
 
-verify :: ( Member (Reader Command) sig
-         , Member (Reader Dep) sig
-         , Member (Error BribeException) sig
-         , Member (Error LicenseError) sig
-         , Member (Writer Result) sig
-         , Member (Reader Settings) sig
-         , Member Trace sig
-         , Carrier sig m
-         , MonadIO m
-         )
-       => m ()
+-- Actually do the checking
+verify :: (Member (Error LicenseError) sig, Checking sig m) => m ()
 verify = do
   Dep depName depVersion <- ask
   whenM (elem depName <$> asks ignored) (throwError Ignoring)
@@ -155,11 +115,24 @@ verify = do
   trace' (T.unpack depName <> ": OK")
   tell succeeding
 
-data BribeException
-  = LicenseFileNotFound FilePath
-  | AttoParseFailure String
-  | YAMLParseFailure Text String
-    deriving (Show)
+-- Download a license file. The parameter represents the filename to try
+-- (first "LICENSE", then "LICENSE.txt" as a fallback)
+download :: Checking sig m => Text -> m ()
+download p = do
+  tag <- asks depTag
+  let licenseURL = Req.http "hackage.haskell.org" /: "package" /: tag /: "src" /: p
+  eResult <-
+    liftIO
+    . Exc.try @Exc.SomeException
+    . Req.runReq def
+    $ Req.req Req.GET licenseURL Req.NoReqBody Req.bsResponse mempty
+
+  case eResult of
+    Left _  -> if p == "LICENSE" then download "LICENSE.txt" else pure ()
+    Right _ -> trace' "Downloaded license file."
+
+textDoc :: Pretty a => a -> Text
+textDoc = Pretty.renderStrict . Pretty.layoutPretty Pretty.defaultLayoutOptions . pretty
 
 main :: IO ()
 main = do
@@ -188,11 +161,12 @@ main = do
   result <- runM
     . runTraceByPrinting
     . runFail
-    . runError @_ @_ @BribeException
+    . runError @_ @_ @Fatal
     . execWriter
     . runReader cmd
     . runReader settings
-    $ traverse (\x -> runReader x process) parsed
+    . traverse (flip runReader process)
+    $ parsed
   case result of
     Left err           -> die ("Unexpected JSON value (debug: " <> show err <> ")")
     Right (Left err)   -> die ("Fatal error: " <> show err)
