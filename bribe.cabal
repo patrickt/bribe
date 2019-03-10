@@ -1,9 +1,9 @@
-cabal-version:       2.2
+cabal-version:       2.4
 name:                bribe
 version:             0.1.0.0
 synopsis:            Aggregate dependency licenses
 homepage:            https://github.com/patrickt/bribe#readme
-license:             BSD-3-Clause
+license:             Apache-2.0
 license-file:        LICENSE
 author:              Patrick Thomson
 maintainer:          patrickt@github.com
@@ -20,7 +20,7 @@ common haskell
                      , DeriveFunctor
                      , DeriveGeneric
                      , DeriveTraversable
-                     , DerivingVia
+                     , DerivingStrategies
                      , FlexibleContexts
                      , FlexibleInstances
                      , GeneralizedNewtypeDeriving
@@ -37,6 +37,8 @@ executable bribe
   hs-source-dirs:      src
   main-is:             Main.hs
   other-modules:       Bribe
+                     , Command
+                     , Settings
   ghc-options:         -Wall -Werror
   build-depends:       base >= 4.7 && < 5
                      , aeson

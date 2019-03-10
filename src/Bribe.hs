@@ -1,16 +1,21 @@
-{-# LANGUAGE DuplicateRecordFields, OverloadedLists #-}
+{-# LANGUAGE DerivingVia, DuplicateRecordFields, LambdaCase, OverloadedLists #-}
 
 module Bribe
-  ( Info (..)
+  ( whenM
+  , unlessM
+  , Info (..)
   , License (..)
   , parseLicense
   , Dep (Dep)
   , depTag
   , parseDep
-  , Result
+  , Result (..)
+  , isMismatch
   , succeeding
   , missing
   , mismatched
+  , invalid
+  , ignore
   ) where
 
 import           Control.Monad
@@ -26,6 +31,10 @@ import qualified Data.Text.Prettyprint.Doc as Pretty
 import qualified Data.Yaml as YAML
 import           GHC.Generics
 
+whenM, unlessM :: Monad m => m Bool -> m () -> m ()
+whenM act handle = act >>= flip when handle
+unlessM act handle = act >>= flip unless handle
+
 data Info = Info
   { name     :: Text
   , version  :: Text
@@ -40,9 +49,10 @@ instance Pretty Info where
     , "name: " <> pretty name
     , "version: " <> pretty version
     , maybe "" (\s -> "summary: " <> escaping s) summary
-    , maybe "" (\s -> "homepage: " <> pretty s) homepage
+    , maybe "" (\s -> "homepage: " <> pretty s ) homepage
     , "license: " <> pretty license
-    ] where escaping x
+    ]
+    where escaping x
             | ":" `T.isPrefixOf` x = Pretty.squotes $ pretty x
             | otherwise            = pretty x
 
@@ -84,15 +94,23 @@ parseDep = do
 data Failure
   = Mismatch Dep Text
   | Missing Dep
+  | Invalid Dep Text
   deriving (Eq, Show)
 
+isMismatch :: Failure -> Bool
+isMismatch Mismatch{} = True
+isMismatch _          = False
+
 instance Pretty Failure where
-  pretty (Mismatch found expected) = "-" <+> pretty (depTag found) <+> "(Stackage version:" <+> pretty expected <> ")"
-  pretty (Missing found)           = "-" <+> pretty (depTag found) <+> "(license not downloaded)"
+  pretty = \case
+    Mismatch found expected -> "-" <+> pretty (depTag found) <+> Pretty.parens ("Stackage version:" <+> pretty expected)
+    Missing found           -> "-" <+> pretty (depTag found) <+> "(license not downloaded)"
+    Invalid found lic       -> "-" <+> pretty (depTag found) <+> Pretty.parens ("invalid license:" <+> pretty lic)
 
 data Result = Result
   { succeeded :: Sum Int
   , failures  :: Seq Failure
+  , ignores   :: Sum Int
   } deriving (Eq, Show, Generic)
     deriving Semigroup via (GenericSemigroup Result)
     deriving Monoid    via (GenericMonoid Result)
@@ -100,18 +118,24 @@ data Result = Result
 instance Pretty Result where
   pretty Result{..}
     | null failures =
-      pretty (getSum succeeded) <+> "successes, 0 failures"
+      pretty (getSum succeeded) <+> "successes, 0 failures," <+> pretty (getSum ignores) <+> "ignored"
     | otherwise = Pretty.vcat
-      [ pretty (getSum succeeded) <+> "successes," <+> pretty (length failures) <+> "failures"
+      [ pretty (getSum succeeded) <+> "successes," <+> pretty (length failures) <+> "failures," <+> pretty (getSum ignores) <+> "ignored"
       , "Failures:"
       , Pretty.vcat (toList . fmap pretty $ failures)
       ]
 
 succeeding :: Result
-succeeding = Result 1 []
+succeeding = Result 1 [] 0
 
 mismatched :: Dep -> Text -> Result
-mismatched d t = Result 0 [Mismatch d t]
+mismatched d t = Result 0 [Mismatch d t] 0
 
 missing :: Dep -> Result
-missing d = Result 0 [Missing d]
+missing d = Result 0 [Missing d] 0
+
+invalid :: Dep -> Text -> Result
+invalid d t = mempty { failures = [Invalid d t]}
+
+ignore :: Result
+ignore = Result 0 [] 1
