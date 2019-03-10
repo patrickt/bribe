@@ -2,6 +2,7 @@ cabal-version:       2.4
 name:                bribe
 version:             0.1.0.0
 synopsis:            Aggregate dependency licenses
+description:         A fast, licensed-compatible tool to download and cache licenses of Stack dependencies.
 homepage:            https://github.com/patrickt/bribe#readme
 license:             Apache-2.0
 license-file:        LICENSE
@@ -39,7 +40,7 @@ executable bribe
   other-modules:       Bribe
                      , Command
                      , Settings
-  ghc-options:         -Wall -Werror
+  ghc-options:         -Wall
   build-depends:       base >= 4.7 && < 5
                      , aeson >= 1.4 && < 2
                      , attoparsec >= 0.13 && < 1
@@ -58,3 +59,7 @@ executable bribe
                      , unix >= 2.7 && < 3
                      , unordered-containers >= 0.2.9 && < 1
                      , yaml >= 0.11
+
+source-repository head
+  type:     git
+  location: https://github.com/patrickt/bribe
