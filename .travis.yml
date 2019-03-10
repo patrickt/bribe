@@ -20,6 +20,7 @@ language: generic
 cache:
   directories:
   - $HOME/.stack
+  - .stack-work
 
 # Ensure necessary system libraries are present
 addons:
@@ -31,7 +32,7 @@ before_install:
 # Download and unpack the stack executable
 - mkdir -p ~/.local/bin
 - export PATH=$HOME/.local/bin:$PATH
-- ./.travis/install-ghr.sh
+- BUILD_BINARY=1 ./.travis/install-ghr.sh
 - travis_retry curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
 
 install:
