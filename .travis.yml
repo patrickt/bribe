@@ -1,4 +1,7 @@
-language: c
+language: haskell
+
+ghc:
+  - "8.6.3"
 
 cache:
   directories:
@@ -16,14 +19,9 @@ before_cache:
 
   - rm -rfv $HOME/.cabal/packages/head.hackage
 
-matrix:
-  include:
-    - compiler: "ghc-8.6.3"
-      addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3], sources: [hvr-ghc]}}
-
-    - compiler: "ghc-8.6.3"
-      os: osx
-      addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3], sources: [hvr-ghc]}}
+os:
+  - linux
+  - osx
 
 before_install:
 - mkdir -p $HOME/.local/bin
