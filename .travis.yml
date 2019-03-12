@@ -31,13 +31,10 @@ before_install:
 - cabal --version
 
 install:
-- cabal new-update
-- cabal new-configure --enable-benchmarks --enable-tests --write-ghc-environment-files=always
-- cabal new-build --only-dependencies
+- cabal install --only-dependencies --enable-tests
 
 script:
-- cabal new-build
-- cabal new-sdist
+- cabal configure --enable-tests && cabal build && cabal test
 - cabal check
 
 after_success:
