@@ -15,7 +15,7 @@ else
   OWNER="$(echo "$TRAVIS_REPO_SLUG" | cut -f1 -d/)"
   REPO="$(echo "$TRAVIS_REPO_SLUG" | cut -f2 -d/)"
   which $REPO
-  BIN="$(stack path --local-install-root)/bin/$REPO"
+  BIN="$(which repo)"
   BUNDLE_NAME="$REPO-$TRAVIS_TAG-$TRAVIS_OS_NAME.tar.gz"
   cp "$BIN" "./$REPO"
   chmod +x "./$REPO"

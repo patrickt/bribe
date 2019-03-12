@@ -1,4 +1,3 @@
-cabal-version:       2.4
 name:                bribe
 version:             0.1.0.0
 synopsis:            Aggregate dependency licenses
@@ -12,8 +11,9 @@ copyright:           (c) 2019 GitHub, Inc.
 category:            CLI
 build-type:          Simple
 extra-source-files:  README.md
+cabal-version:       >=1.10
 
-common haskell
+executable bribe
   default-language:    Haskell2010
   default-extensions:  DataKinds
                      , DeriveAnyClass
@@ -32,9 +32,6 @@ common haskell
                      , StandaloneDeriving
                      , StrictData
                      , TypeApplications
-
-executable bribe
-  import:              haskell
   hs-source-dirs:      src
   main-is:             Main.hs
   other-modules:       Bribe
