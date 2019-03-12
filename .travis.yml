@@ -16,13 +16,13 @@ before_cache:
 
   - rm -rfv $HOME/.cabal/packages/head.hackage
 
-os:
-  - osx
-  - linux
-
 matrix:
   include:
     - compiler: "ghc-8.6.3"
+      addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3], sources: [hvr-ghc]}}
+
+    - compiler: "ghc-8.6.3"
+      os: osx
       addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3], sources: [hvr-ghc]}}
 
 before_install:
