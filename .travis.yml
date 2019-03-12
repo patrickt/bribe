@@ -16,6 +16,10 @@ before_cache:
 
   - rm -rfv $HOME/.cabal/packages/head.hackage
 
+os:
+  - osx
+  - linux
+
 matrix:
   include:
     - compiler: "ghc-8.6.3"
