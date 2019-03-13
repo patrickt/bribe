@@ -1,5 +1,5 @@
 name:                bribe
-version:             0.1.0.0
+version:             0.2.0.0
 synopsis:            Aggregate dependency licenses
 description:         A fast, licensed-compatible tool to download and cache licenses of Stack dependencies.
 homepage:            https://github.com/patrickt/bribe#readme
