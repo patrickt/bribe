@@ -1,7 +1,4 @@
-language: haskell
-
-ghc:
-  - "8.6.3"
+language: c
 
 cache:
   directories:
@@ -19,9 +16,10 @@ before_cache:
 
   - rm -rfv $HOME/.cabal/packages/head.hackage
 
-os:
-  - linux
-  - osx
+matrix:
+  include:
+    - compiler: "ghc-8.6.3"
+      addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3], sources: [hvr-ghc]}}
 
 before_install:
 - mkdir -p $HOME/.local/bin
@@ -31,10 +29,13 @@ before_install:
 - cabal --version
 
 install:
-- cabal install --only-dependencies --enable-tests
+- cabal new-update
+- cabal new-configure --enable-benchmarks --enable-tests --write-ghc-environment-files=always
+- cabal new-build --only-dependencies
 
 script:
-- cabal configure --enable-tests && cabal build && cabal test
+- cabal new-build
+- cabal new-sdist
 - cabal check
 
 after_success:
