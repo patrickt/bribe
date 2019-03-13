@@ -23,12 +23,13 @@ import           Data.Text.Prettyprint.Doc (Pretty (..))
 import qualified Data.Text.Prettyprint.Doc as Pretty
 import qualified Data.Text.Prettyprint.Doc.Render.Text as Pretty
 import qualified Data.Yaml as YAML
+import qualified Distribution.InstalledPackageInfo as Cabal
 import           Network.HTTP.Req ((/:))
 import qualified Network.HTTP.Req as Req
+import           Options.Applicative as Opt
 import           System.Directory (doesFileExist)
 import           System.Exit
 import           System.Path ((<.>), (</>))
-import           Options.Applicative as Opt
 import qualified System.Path as Path
 import           System.Posix.Directory
 import           System.Process
@@ -52,7 +53,7 @@ type Checking sig m
 
 data LicenseError
   = Ignoring
-  | Missing
+  | Missing FilePath
   | Mismatch String Info License
   | Disallowed Text
     deriving (Eq, Show)
@@ -60,6 +61,8 @@ data LicenseError
 data Fatal
   = AttoParseFailure String
   | YAMLParseFailure Text String
+  | CabalParseFailure Text
+  | GhcPkgFailure
     deriving (Show)
 
 -- Could write our own handler, but this is easier
@@ -76,10 +79,10 @@ recover err = do
   dep@(Dep dname dversion) <- ask
   case err of
     Ignoring -> trace' (T.unpack dname <> ": IGNORING") *> tell ignore
-    Missing -> do
+    Missing sys -> do
       trace' (T.unpack dname <> ": LICENSE NOT FOUND!")
       tell (missing dep)
-      whenM (asks isUpdating) (download "LICENSE")
+      whenM (asks isUpdating) (download sys "LICENSE")
     Disallowed t -> do
       trace' (T.unpack dname <> ": DISALLOWED LICENSE!")
       tell (invalid dep t)
@@ -106,7 +109,7 @@ verify = do
         </> Path.file (T.unpack depName) <.> "txt"
 
   let sys = Path.toString path
-  unlessM (liftIO (doesFileExist sys)) (throwError Missing)
+  unlessM (liftIO (doesFileExist sys)) (throwError (Missing sys))
 
   eLicense <- Atto.parseOnly parseLicense <$> liftIO (T.readFile sys)
   onDisk   <- either (throwError . AttoParseFailure) pure eLicense
@@ -125,10 +128,12 @@ verify = do
 
 -- Download a license file. The parameter represents the filename to try
 -- (first "LICENSE", then "LICENSE.txt" as a fallback)
-download :: Checking sig m => Text -> m ()
-download p = do
+download :: Checking sig m => FilePath -> Text -> m ()
+download sys p = do
+  pkg <- asks package
   tag <- asks depTag
   let licenseURL = Req.http "hackage.haskell.org" /: "package" /: tag /: "src" /: p
+  trace' (show licenseURL)
   eResult <-
     liftIO
     . Exc.try @Exc.SomeException
@@ -136,8 +141,19 @@ download p = do
     $ Req.req Req.GET licenseURL Req.NoReqBody Req.bsResponse mempty
 
   case eResult of
-    Left _  -> if p == "LICENSE" then download "LICENSE.txt" else pure ()
-    Right _ -> trace' "Downloaded license file."
+    Left _  -> if p == "LICENSE" then download sys "LICENSE.txt" else pure ()
+    Right bs -> do
+      trace' "Downloaded license file."
+
+      (code, out, _) <- liftIO $ readProcessWithExitCode "stack" ["exec", "ghc-pkg", "--", "describe", T.unpack pkg] ""
+
+      when (code == ExitSuccess) $ do
+        let mCabal = Cabal.parseInstalledPackageInfo out
+        case fmap fromCabal mCabal of
+          Cabal.ParseFailed e -> trace' ("CABAL PARSE FAILURE " <> show e)
+          Cabal.ParseOk _ newinfo -> do
+            let newlicense = License (decodeUtf8 . YAML.encode $ newinfo) (decodeUtf8 . Req.responseBody $ bs)
+            liftIO . T.writeFile sys . textDoc $ newlicense
 
 textDoc :: Pretty a => a -> Text
 textDoc = Pretty.renderStrict . Pretty.layoutPretty Pretty.defaultLayoutOptions . pretty

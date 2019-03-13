@@ -10,11 +10,12 @@ then
   exit 1
 else
   echo "Building binary for $TRAVIS_OS_NAME to $TRAVIS_TAG..."
-  stack build --ghc-options -O2 --pedantic
+  cabal install
   echo "Attaching binary for $TRAVIS_OS_NAME to $TRAVIS_TAG..."
   OWNER="$(echo "$TRAVIS_REPO_SLUG" | cut -f1 -d/)"
   REPO="$(echo "$TRAVIS_REPO_SLUG" | cut -f2 -d/)"
-  BIN="$(stack path --local-install-root)/bin/$REPO"
+  which $REPO
+  BIN="$(which repo)"
   BUNDLE_NAME="$REPO-$TRAVIS_TAG-$TRAVIS_OS_NAME.tar.gz"
   cp "$BIN" "./$REPO"
   chmod +x "./$REPO"

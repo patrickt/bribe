@@ -4,9 +4,11 @@ module Bribe
   ( whenM
   , unlessM
   , Info (..)
+  , fromCabal
   , License (..)
   , parseLicense
   , Dep (Dep)
+  , package
   , depTag
   , parseDep
   , Result (..)
@@ -29,6 +31,10 @@ import qualified Data.Text as T
 import           Data.Text.Prettyprint.Doc (Pretty (..), (<+>))
 import qualified Data.Text.Prettyprint.Doc as Pretty
 import qualified Data.Yaml as YAML
+import qualified Distribution.InstalledPackageInfo as Cabal
+import qualified Distribution.Types.PackageId as Cabal
+import qualified Distribution.Pretty as Cabal
+import qualified Distribution.Types.PackageName as Cabal
 import           GHC.Generics
 
 whenM, unlessM :: Monad m => m Bool -> m () -> m ()
@@ -41,7 +47,21 @@ data Info = Info
   , summary  :: Maybe Text
   , homepage :: Maybe Text
   , license  :: Text -- ^ a short name, usually an SPDX identifier
-  } deriving (Show, Eq, Generic, YAML.FromJSON)
+  } deriving (Show, Eq, Generic, YAML.FromJSON, YAML.ToJSON)
+
+fromCabal :: Cabal.InstalledPackageInfo -> Info
+fromCabal p = Info { name     = T.pack . Cabal.unPackageName . Cabal.pkgName . Cabal.sourcePackageId $ p
+                   , version  = T.pack . Cabal.prettyShow . Cabal.pkgVersion . Cabal.sourcePackageId $ p
+                   , summary  = Just . T.pack . Cabal.synopsis $ p
+                   , homepage = Just . T.pack . Cabal.homepage $ p
+                   , license  = munge . T.pack . either Cabal.prettyShow Cabal.prettyShow . Cabal.license $ p
+                   }
+
+munge :: Text -> Text
+munge t
+  | t == "BSD-3" = "bsd-3-clause"
+  | t == "MIT"   = "mit"
+  | otherwise = T.toLower t
 
 instance Pretty Info where
   pretty Info{..} = Pretty.vcat
@@ -77,7 +97,7 @@ parseLicense = do
   pure (License (T.pack yaml) rest)
 
 data Dep = Dep
-  { name    :: Text
+  { package :: Text
   , version :: Text
   } deriving (Eq, Show)
 
